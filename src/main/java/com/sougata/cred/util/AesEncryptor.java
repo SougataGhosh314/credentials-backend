@@ -2,8 +2,13 @@ package com.sougata.cred.util;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.security.spec.KeySpec;
 import java.util.Base64;
 
 public class AesEncryptor {
@@ -54,4 +59,16 @@ public class AesEncryptor {
             throw new RuntimeException("Decryption failed", e);
         }
     }
+
+    public static SecretKey generateKeyFromPassword(String password, String salt) {
+        try {
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            KeySpec spec = new PBEKeySpec(password.toCharArray(), salt.getBytes(StandardCharsets.UTF_8), 65536, 256);
+            byte[] keyBytes = factory.generateSecret(spec).getEncoded();
+            return new SecretKeySpec(keyBytes, "AES");
+        } catch (Exception e) {
+            throw new RuntimeException("Error generating key from password", e);
+        }
+    }
+
 }

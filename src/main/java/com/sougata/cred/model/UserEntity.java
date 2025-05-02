@@ -31,6 +31,9 @@ public class UserEntity {
     @Column(nullable = false)
     private String encryptionSalt;
 
+    @Column(nullable = false)
+    private String encryptedAesKey;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 

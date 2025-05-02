@@ -6,6 +6,7 @@ import com.sougata.cred.util.AesEncryptor;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -34,7 +35,7 @@ public class EncryptionService {
         String username = getCurrentUsername();
         SecretKey key = keyCache.get(username);
         if (key == null) {
-            throw new IllegalStateException("Decryption key not found for user: " + username);
+            throw new AccessDeniedException("Your session expired. Please log in again.");
         }
         return AesEncryptor.decrypt(ciphertext, key);
     }

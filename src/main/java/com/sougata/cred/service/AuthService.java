@@ -5,14 +5,12 @@ import com.sougata.cred.model.UserEntity;
 import com.sougata.cred.repository.UserRepository;
 import com.sougata.cred.util.EncryptionUtil;
 import com.sougata.cred.util.JwtUtil;
+import com.sougata.cred.util.KeyEncryptionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 
 import static com.sougata.cred.util.EncryptionUtil.generateSalt;
 
@@ -38,12 +36,20 @@ public class AuthService {
             throw new RuntimeException("Username already exists");
         }
 
+        String salt = generateSalt();
+        SecretKey aesKey = EncryptionUtil.generateRandomAesKey();
+        String encryptedAesKey = KeyEncryptionUtil.encryptUserKey(aesKey);
+
         UserEntity userEntity = new UserEntity();
         userEntity.setUsername(username);
         userEntity.setPassword(passwordEncoder.encode(rawPassword));
-        userEntity.setEncryptionSalt(generateSalt());
+        userEntity.setEncryptionSalt(salt);
+        userEntity.setEncryptedAesKey(encryptedAesKey);
 
         userRepo.save(userEntity);
+
+        // Cache the decrypted AES key for the user
+        inMemoryKeyCache.store(username, aesKey);
 
         return jwtUtil.generateToken(username);
     }
@@ -55,20 +61,12 @@ public class AuthService {
         if (!passwordEncoder.matches(rawPassword, userEntity.getPassword())) {
             throw new RuntimeException("Invalid credentials");
         }
-        SecretKey key = null;
 
-        try {
-            // Derive AES key using PBKDF2 with HmacSHA256
-            key = EncryptionUtil.deriveKey(
-                    rawPassword, // entered password
-                    userEntity.getEncryptionSalt()
-            );
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            log.error("Error deriving AES key using PBKDF2 with HmacSHA256: {}", e.getStackTrace());
-        }
+        // Decrypt the user-specific AES key using server master key
+        SecretKey aesKey = KeyEncryptionUtil.decryptUserKey(userEntity.getEncryptedAesKey());
 
         // Save to a session-store (e.g., ConcurrentHashMap<username, SecretKey>)
-        inMemoryKeyCache.store(userEntity.getUsername(), key);
+        inMemoryKeyCache.store(userEntity.getUsername(), aesKey);
 
         return jwtUtil.generateToken(username);
     }
