@@ -1,11 +1,11 @@
 package com.sougata.cred.controller;
 
 import com.sougata.cred.service.AuthService;
+import com.sougata.cred.service.EncryptionService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -14,9 +14,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final EncryptionService encryptionService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, EncryptionService encryptionService) {
         this.authService = authService;
+        this.encryptionService = encryptionService;
     }
 
     @PostMapping("/register")
@@ -30,4 +32,13 @@ public class AuthController {
         String token = authService.login(payload.get("username"), payload.get("password"));
         return ResponseEntity.ok(Map.of("token", token));
     }
+
+    @DeleteMapping("/delete-account")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> deleteAccount() {
+        String username = encryptionService.getCurrentUsername();
+        authService.deleteAccount(username);
+        return ResponseEntity.noContent().build();
+    }
+
 }

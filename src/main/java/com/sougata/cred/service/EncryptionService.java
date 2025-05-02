@@ -40,7 +40,7 @@ public class EncryptionService {
         return AesEncryptor.decrypt(ciphertext, key);
     }
 
-    private String getCurrentUsername() {
+    public String getCurrentUsername() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof UserEntity user) {
             return user.getUsername();

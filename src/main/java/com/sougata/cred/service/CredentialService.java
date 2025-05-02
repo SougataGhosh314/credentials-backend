@@ -13,7 +13,6 @@ import java.util.Optional;
 
 @Service
 public class CredentialService {
-
     private final CredentialRepository repository;
     private final EncryptionService encryptionService;
 

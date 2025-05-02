@@ -2,10 +2,11 @@ package com.sougata.cred.service;
 
 import com.sougata.cred.cache.InMemoryKeyCache;
 import com.sougata.cred.model.UserEntity;
+import com.sougata.cred.repository.CredentialRepository;
 import com.sougata.cred.repository.UserRepository;
 import com.sougata.cred.util.EncryptionUtil;
 import com.sougata.cred.util.JwtUtil;
-import com.sougata.cred.util.KeyEncryptionUtil;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,18 +18,23 @@ import static com.sougata.cred.util.EncryptionUtil.generateSalt;
 @Slf4j
 @Service
 public class AuthService {
-
     private final UserRepository userRepo;
+    private final CredentialRepository credRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-
     private final InMemoryKeyCache inMemoryKeyCache;
+    private final KeyEncryptionService keyEncryptionService;
 
-    public AuthService(UserRepository userRepo, PasswordEncoder encoder, JwtUtil jwtUtil, InMemoryKeyCache inMemoryKeyCache) {
+    public AuthService(
+            UserRepository userRepo, CredentialRepository credRepo, PasswordEncoder encoder, JwtUtil jwtUtil,
+            InMemoryKeyCache inMemoryKeyCache, KeyEncryptionService keyEncryptionService
+    ) {
         this.userRepo = userRepo;
+        this.credRepo = credRepo;
         this.passwordEncoder = encoder;
         this.jwtUtil = jwtUtil;
         this.inMemoryKeyCache = inMemoryKeyCache;
+        this.keyEncryptionService = keyEncryptionService;
     }
 
     public String register(String username, String rawPassword) {
@@ -38,7 +44,7 @@ public class AuthService {
 
         String salt = generateSalt();
         SecretKey aesKey = EncryptionUtil.generateRandomAesKey();
-        String encryptedAesKey = KeyEncryptionUtil.encryptUserKey(aesKey);
+        String encryptedAesKey = keyEncryptionService.encryptUserKey(aesKey);
 
         UserEntity userEntity = new UserEntity();
         userEntity.setUsername(username);
@@ -63,11 +69,21 @@ public class AuthService {
         }
 
         // Decrypt the user-specific AES key using server master key
-        SecretKey aesKey = KeyEncryptionUtil.decryptUserKey(userEntity.getEncryptedAesKey());
+        SecretKey aesKey = keyEncryptionService.decryptUserKey(userEntity.getEncryptedAesKey());
 
         // Save to a session-store (e.g., ConcurrentHashMap<username, SecretKey>)
         inMemoryKeyCache.store(userEntity.getUsername(), aesKey);
 
         return jwtUtil.generateToken(username);
+    }
+
+    @Transactional
+    public void deleteAccount(String username) {
+        userRepo.findByUsername(username).ifPresent(user -> {
+
+            userRepo.delete(user); // Credentials will be deleted via cascade
+            inMemoryKeyCache.remove(username);
+            log.info("Deleted account for user: {}", username);
+        });
     }
 }
